@@ -477,11 +477,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: afc28e96fb7734be9805f1efe2878eec, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ClickToMove
-  cam: {fileID: 0}
+  cam: {fileID: 330585545}
   groundMask:
     serializedVersion: 2
     m_Bits: 64
   selection: {fileID: 1012999670}
+  markerPrefab: {fileID: 4054767419812260102, guid: df50d659ff0b94054a7fd8fe61e3c613, type: 3}
 --- !u!114 &1012999670
 MonoBehaviour:
   m_ObjectHideFlags: 0

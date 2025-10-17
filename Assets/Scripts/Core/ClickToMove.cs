@@ -8,8 +8,12 @@ public class ClickToMove : MonoBehaviour {
     public LayerMask groundMask;
     public SelectionController selection;
 
+    // 👇 Add this line
+    public MoveMarker markerPrefab;
+
     void Reset(){ cam = Camera.main; }
-    bool RMBDown() {
+
+    bool RMBDown(){
         #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
         return Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;
         #else
@@ -25,9 +29,12 @@ public class ClickToMove : MonoBehaviour {
             if (Physics.Raycast(cam.ScreenPointToRay(Input.mousePosition), out var hit, 500f, groundMask)){
                 var mover = selection.Current.GetComponent<UnitMover>();
                 if (mover) mover.IssueMove(hit.point);
-                Debug.Log("[Input] RMB -> ground hit");
-            } else {
-                Debug.Log("[Input] RMB -> no ground hit");
+
+                // 👇 Spawn the visual ping
+                if (markerPrefab){
+                    var m = Instantiate(markerPrefab);
+                    m.ShowAt(hit.point);
+                }
             }
         }
     }
