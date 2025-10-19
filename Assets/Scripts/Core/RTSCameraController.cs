@@ -7,17 +7,18 @@ public class RTSCameraController : MonoBehaviour {
     [Header("Move & Zoom")]
     public float panSpeed = 15f;
     public float edgePanSpeed = 20f;
-    public int edgeSize = 12;            // px from screen edge
+    public int edgeSize = 12;             // px from screen edge
+    public bool edgePan = true;
     public float zoomSpeed = 400f;
     public float minHeight = 8f, maxHeight = 60f;
 
     [Header("Angles")]
-    public float tiltDegrees = 55f;      // camera pitch
-    public bool lockToYPlane = true;     // keep above y=0 plane
+    public float tiltDegrees = 55f;       // camera pitch
+    public bool lockToYPlane = true;      // keep constant pitch
 
     [Header("Bounds (optional)")]
-    public Vector2 xzMin = new Vector2(-200,-200);
-    public Vector2 xzMax = new Vector2( 200, 200);
+    public Vector2 xzMin = new Vector2(-200, -200);
+    public Vector2 xzMax = new Vector2( 200,  200);
 
     Camera cam;
     void Awake(){
@@ -25,15 +26,23 @@ public class RTSCameraController : MonoBehaviour {
         transform.rotation = Quaternion.Euler(tiltDegrees, transform.eulerAngles.y, 0f);
     }
 
-    float Axis(string name){
+    // Arrow-key axes
+    float AxisHoriz(){
         #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
         var k = Keyboard.current;
         if (k == null) return 0f;
-        if (name=="Horizontal") return (k.dKey.isPressed?1:0) + (k.aKey.isPressed?-1:0);
-        if (name=="Vertical")   return (k.wKey.isPressed?1:0) + (k.sKey.isPressed?-1:0);
-        return 0f;
+        return (k.rightArrowKey.isPressed?1:0) + (k.leftArrowKey.isPressed?-1:0);
         #else
-        return name=="Horizontal" ? Input.GetAxisRaw("Horizontal") : Input.GetAxisRaw("Vertical");
+        return (Input.GetKey(KeyCode.RightArrow)?1:0) + (Input.GetKey(KeyCode.LeftArrow)?-1:0);
+        #endif
+    }
+    float AxisVert(){
+        #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+        var k = Keyboard.current;
+        if (k == null) return 0f;
+        return (k.upArrowKey.isPressed?1:0) + (k.downArrowKey.isPressed?-1:0);
+        #else
+        return (Input.GetKey(KeyCode.UpArrow)?1:0) + (Input.GetKey(KeyCode.DownArrow)?-1:0);
         #endif
     }
 
@@ -44,41 +53,41 @@ public class RTSCameraController : MonoBehaviour {
         return Input.mouseScrollDelta.y;
         #endif
     }
-
     Vector2 MousePos(){
         #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
         return Mouse.current!=null ? Mouse.current.position.ReadValue() : Vector2.zero;
         #else
-        return Input.mousePosition;
+        return (Vector2)Input.mousePosition;
         #endif
     }
 
     void Update(){
-        // keyboard pan
-        Vector3 move = new Vector3(Axis("Horizontal"), 0f, Axis("Vertical"));
+        // keyboard pan (arrows)
+        Vector3 move = new Vector3(AxisHoriz(), 0f, AxisVert());
 
-        // edge pan (if mouse near screen edges)
-        var mp = MousePos();
-        if (mp.x <= edgeSize) move += Vector3.left;
-        else if (mp.x >= Screen.width - edgeSize) move += Vector3.right;
-        if (mp.y <= edgeSize) move += Vector3.back;
-        else if (mp.y >= Screen.height - edgeSize) move += Vector3.forward;
+        // edge pan
+        if (edgePan){
+            var mp = MousePos();
+            if (mp.x <= edgeSize) move += Vector3.left;
+            else if (mp.x >= Screen.width - edgeSize) move += Vector3.right;
+            if (mp.y <= edgeSize) move += Vector3.back;
+            else if (mp.y >= Screen.height - edgeSize) move += Vector3.forward;
+        }
 
-        // move in camera's XZ
+        // move along ground plane
         Vector3 right = new Vector3(transform.right.x, 0, transform.right.z).normalized;
         Vector3 fwd   = new Vector3(transform.forward.x, 0, transform.forward.z).normalized;
         Vector3 delta = (right * move.x + fwd * move.z) * panSpeed * Time.deltaTime;
         transform.position += delta;
 
-        // zoom (change height along world Y)
-        float scroll = Scroll();
-        if (Mathf.Abs(scroll) > 0.001f){
-            float dh = -scroll * zoomSpeed * Time.deltaTime;
-            float newY = Mathf.Clamp(transform.position.y + dh, minHeight, maxHeight);
+        // zoom
+        float s = Scroll();
+        if (Mathf.Abs(s) > 0.001f){
+            float newY = Mathf.Clamp(transform.position.y - s * zoomSpeed * Time.deltaTime, minHeight, maxHeight);
             transform.position = new Vector3(transform.position.x, newY, transform.position.z);
         }
 
-        // optional clamp to bounds
+        // clamp to bounds
         transform.position = new Vector3(
             Mathf.Clamp(transform.position.x, xzMin.x, xzMax.x),
             transform.position.y,
@@ -86,7 +95,6 @@ public class RTSCameraController : MonoBehaviour {
         );
 
         if (lockToYPlane){
-            // keep camera from dipping under terrain plane visually
             transform.rotation = Quaternion.Euler(tiltDegrees, transform.eulerAngles.y, 0f);
         }
     }

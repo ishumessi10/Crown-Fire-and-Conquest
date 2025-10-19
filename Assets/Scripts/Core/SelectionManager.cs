@@ -65,6 +65,20 @@ public class SelectionManager : MonoBehaviour {
     }
 
     void Update() {
+
+        // If another system asked to consume the next LMB click, swallow it.
+        #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+        bool lmbDownThisFrame = (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame);
+        #else
+        bool lmbDownThisFrame = Input.GetMouseButtonDown(0);
+        #endif
+
+        if (blockNextClick && lmbDownThisFrame) {
+            blockNextClick = false;
+            // do NOT start drag/select this frame
+            return;
+        }
+
         if (!cam) cam = Camera.main;
 
         if (LMBDown()) {
@@ -132,11 +146,15 @@ public class SelectionManager : MonoBehaviour {
     }
 
     // The camera that should be used for ScreenPointToLocalPointInRectangle
-    Camera CanvasCamera() {
+    Camera CanvasCamera()
+    {
         if (canvas == null) return null;
         if (canvas.renderMode == RenderMode.ScreenSpaceOverlay) return null;
         if (canvas.renderMode == RenderMode.ScreenSpaceCamera) return canvas.worldCamera ? canvas.worldCamera : cam;
         // World Space
         return cam;
     }
+    // lets other systems (e.g., CommandRouter) consume one LMB click
+    private bool blockNextClick = false;
+    public void BlockNextClick() { blockNextClick = true; }
 }
