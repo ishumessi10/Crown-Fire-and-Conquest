@@ -14,10 +14,12 @@ public class AttackUnit : MonoBehaviour {
     Targetable currentTarget;
     float cd;
 
-    void Awake()
-    {
+    Team selfTeam;
+
+    void Awake(){
         mover = GetComponent<UnitMover>();
-        agent = GetComponent<NavMeshAgent>();
+        agent = GetComponent<UnityEngine.AI.NavMeshAgent>();
+        selfTeam = GetComponent<Team>();   // <- new
     }
     
     bool autoAcquire;                       // <- new
@@ -35,10 +37,16 @@ public class AttackUnit : MonoBehaviour {
     }
 
     public void IssueAttackTarget(Targetable t){
+        if (t == null) return;
+        // skip allies
+        var theirTeam = t.GetComponent<Team>();
+        if (selfTeam && theirTeam && selfTeam.teamId == theirTeam.teamId) return;
+
         currentTarget = t;
-        autoAcquire = true;                 // <- add
+        autoAcquire = true;
         mover.IssueMove(t.transform.position);
     }
+
 
     public void IssueAttackMove(Vector3 dest){
         currentTarget = null;
@@ -83,11 +91,16 @@ public class AttackUnit : MonoBehaviour {
         float best = float.PositiveInfinity; Targetable bestT = null;
         foreach (var h in hits){
             var t = h.GetComponentInParent<Targetable>();
-            if (t && t.health && t.health.IsAlive){
-                float d = (t.transform.position - transform.position).sqrMagnitude;
-                if (d < best){ best = d; bestT = t; }
-            }
+            if (!t || !t.health || !t.health.IsAlive) continue;
+
+            // skip allies
+            var theirTeam = t.GetComponent<Team>();
+            if (selfTeam && theirTeam && selfTeam.teamId == theirTeam.teamId) continue;
+
+            float d = (t.transform.position - transform.position).sqrMagnitude;
+            if (d < best){ best = d; bestT = t; }
         }
         return bestT;
     }
+
 }
