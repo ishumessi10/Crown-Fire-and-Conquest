@@ -65,10 +65,20 @@ public class CommandRouter : MonoBehaviour {
         return (Vector2)Input.mousePosition;
         #endif
     }
+    
+    bool PointerOverUI() {
+        return EventSystem.current && EventSystem.current.IsPointerOverGameObject();
+    }
     // -----------------------
 
     void Update(){
         if (!cam) cam = Camera.main;
+
+        // If pointer is over any UI, skip world commands this frame
+            if (PointerOverUI()){
+                Debug.Log("[Input] Over UI → world input blocked");
+                return;
+            }
 
         // Press A to arm attack mode for the next LMB
         if (ADown()) attackMode = true;
