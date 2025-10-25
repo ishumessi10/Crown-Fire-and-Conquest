@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
+
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
 using UnityEngine.InputSystem;
 #endif
@@ -86,27 +88,49 @@ public class ProductionUIController : MonoBehaviour {
         return null;
     }
 
-    void RebuildCatalog(){
-        // clear old
-        foreach (var b in catalogButtons) if (b) Destroy(b.gameObject);
-        catalogButtons.Clear();
+void RebuildCatalog(){
+    // clear old
+    foreach (var b in catalogButtons) if (b) Destroy(b.gameObject);
+    catalogButtons.Clear();
 
-        if (active == null || catalogButtonPrefab == null || catalogRoot == null) return;
+    if (active == null || catalogButtonPrefab == null || catalogRoot == null) return;
 
-        for (int i=0; i<active.options.Count; i++){
-            int idx = i;
-            var btn = Instantiate(catalogButtonPrefab, catalogRoot);
-            catalogButtons.Add(btn);
+    for (int i = 0; i < active.options.Count; i++){
+        int idx = i;
+        var btn = Instantiate(catalogButtonPrefab, catalogRoot);
+        catalogButtons.Add(btn);
 
-            var txt = btn.GetComponentInChildren<Text>();
-            if (txt) txt.text = active.options[i].displayName;
-
-            var img = btn.GetComponentInChildren<Image>();
-            if (img && active.options[i].icon) img.sprite = active.options[i].icon;
-
-            btn.onClick.AddListener(()=> TryEnqueue(idx));
+        // TMP text (prefer a child named "Label" if you have one)
+        TMP_Text tmp = btn.GetComponentInChildren<TMP_Text>(true);
+        if (tmp){
+            var opt = active.options[i];
+            string name = opt.displayName;
+            string costStr = "";
+            if (opt.cost != null){
+                foreach (var c in opt.cost){
+                    if (c.amount <= 0) continue;
+                    string code = c.type switch {
+                        ResourceType.Food  => "Fd",
+                        ResourceType.Wood  => "Wd",
+                        ResourceType.Fibre => "Fb",
+                        ResourceType.Metal => "Mt",
+                        ResourceType.Gold  => "Gd",
+                        _ => c.type.ToString()
+                    };
+                    costStr += $" {code}:{c.amount}";
+                }
+            }
+            tmp.text = costStr.Length > 0 ? $"{name}\n{costStr}" : name;
         }
+
+        // Icon (prefer child named "Icon" if present)
+        var img = btn.GetComponentInChildren<Image>(true);
+        if (img && active.options[i].icon) img.sprite = active.options[i].icon;
+
+        btn.onClick.AddListener(() => TryEnqueue(idx));
     }
+}
+
 
     void TryEnqueue(int idx){
         if (active) active.Enqueue(idx);

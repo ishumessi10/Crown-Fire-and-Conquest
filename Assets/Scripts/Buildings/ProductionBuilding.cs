@@ -4,9 +4,10 @@ using UnityEngine;
 [System.Serializable]
 public class ProductionOption {
     public string displayName;
-    public GameObject prefab;     // unit prefab to spawn
-    public float buildTime = 5f;  // seconds to produce
-    public Sprite icon;           // optional: UI icon
+    public GameObject prefab;
+    public float buildTime = 5f;
+    public Sprite icon;
+    public System.Collections.Generic.List<ResourceCost> cost = new System.Collections.Generic.List<ResourceCost>(); // NEW
 }
 
 public class ProductionBuilding : MonoBehaviour {
@@ -52,25 +53,35 @@ public class ProductionBuilding : MonoBehaviour {
     public bool Enqueue(int optionIndex){
         if (optionIndex < 0 || optionIndex >= options.Count) return false;
         if (QueueCount >= maxQueue) return false;
-        var q = new Queued(options[optionIndex]);
+
+        var opt = options[optionIndex];
+        // Pay upfront
+        if (!ResourceBank.I || !ResourceBank.I.TrySpend(opt.cost)) {
+            // TODO: flash "Not enough resources"
+            return false;
+        }
+
+        var q = new Queued(opt);
         if (current == null) current = q;
         else queue.Enqueue(q);
         return true;
     }
 
-    public bool CancelFront(){ // cancels current
+    public bool CancelFront(){ // cancels current and refunds remaining full cost
         if (current == null) return false;
+        if (ResourceBank.I != null) ResourceBank.I.Refund(current.opt.cost);
         current = null;
         return true;
     }
 
-    public bool CancelLast(){ // pop from end of queue
+    public bool CancelLast(){
         if (queue.Count == 0) return false;
-        // rebuild without last
-        var temp = new List<Queued>(queue);
+        var temp = new System.Collections.Generic.List<Queued>(queue);
+        var last = temp[temp.Count-1];
         temp.RemoveAt(temp.Count-1);
         queue.Clear();
         foreach (var q in temp) queue.Enqueue(q);
+        if (ResourceBank.I != null) ResourceBank.I.Refund(last.opt.cost);
         return true;
     }
 

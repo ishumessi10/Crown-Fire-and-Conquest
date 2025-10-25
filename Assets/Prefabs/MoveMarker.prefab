@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 172175936033537902}
   - component: {fileID: 4054767419812260102}
+  - component: {fileID: 1336159495833893172}
   m_Layer: 8
   m_Name: MoveMarker
   m_TagString: Untagged
@@ -94,6 +95,20 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &1336159495833893172
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 128180919456459480}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1bf978106042431b9587969a755820b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ScalePing
+  duration: 0.25
+  scale: 1.15
 --- !u!1 &2830552403833959074
 GameObject:
   m_ObjectHideFlags: 0

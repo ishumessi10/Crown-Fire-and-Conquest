@@ -141,7 +141,14 @@ public class CommandRouter : MonoBehaviour {
                         else             mover.IssueMove(target);
                     }
                 }
-                if (markerPrefab){ var m = Instantiate(markerPrefab); m.ShowAt(hit.point); }
+                if (markerPrefab)
+                {
+                    var m = Instantiate(markerPrefab);
+                    m.ShowAt(hit.point); 
+                    m.GetComponent<ScalePing>()?.Play();
+                }
+                
+
             }
 
             attackMode = false; // consume A-mode after the click
@@ -171,7 +178,11 @@ public class CommandRouter : MonoBehaviour {
                     else             mover.IssueMove(target);
                 }
 
-                if (markerPrefab){ var m = Instantiate(markerPrefab); m.ShowAt(hit.point); }
+                if (markerPrefab){
+                    var m = Instantiate(markerPrefab);
+                    m.ShowAt(hit.point);
+                    m.GetComponent<ScalePing>()?.Play();
+                    }
             }
         }
     }

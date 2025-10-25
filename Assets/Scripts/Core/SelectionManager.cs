@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems; 
+
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
 using UnityEngine.InputSystem;
 #endif
@@ -65,6 +67,13 @@ public class SelectionManager : MonoBehaviour {
     }
 
     void Update() {
+        if (EventSystem.current && EventSystem.current.IsPointerOverGameObject())
+        {
+            if (selectionBox) selectionBox.gameObject.SetActive(false);
+            dragging = false;
+            return;
+        }
+
 
         // If another system asked to consume the next LMB click, swallow it.
         #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
