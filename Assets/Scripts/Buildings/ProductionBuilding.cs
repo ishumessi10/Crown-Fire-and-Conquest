@@ -7,7 +7,7 @@ public class ProductionOption {
     public GameObject prefab;
     public float buildTime = 5f;
     public Sprite icon;
-    public System.Collections.Generic.List<ResourceCost> cost = new System.Collections.Generic.List<ResourceCost>(); // NEW
+    public List<ResourceCost> cost = new List<ResourceCost>(); // costs paid on enqueue
 }
 
 public class ProductionBuilding : MonoBehaviour {
@@ -32,25 +32,37 @@ public class ProductionBuilding : MonoBehaviour {
 
     // Public read for UI
     public IReadOnlyCollection<ProductionOption> Catalog => options;
-    public int QueueCount => queue.Count + (current!=null ? 1 : 0);
-    public float CurrentProgress01 => current==null ? 0f : 1f - (current.remaining / Mathf.Max(0.0001f, current.opt.buildTime));
+    public int QueueCount => queue.Count + (current != null ? 1 : 0);
+    public float CurrentProgress01 => current == null ? 0f : 1f - (current.remaining / Mathf.Max(0.0001f, current.opt.buildTime));
     public Sprite CurrentIcon => current?.opt.icon;
 
     void Update(){
         if (current == null){
             if (queue.Count > 0){
                 current = queue.Dequeue();
-            } else return;
+            } else {
+                return;
+            }
         }
 
         current.remaining -= Time.deltaTime;
         if (current.remaining <= 0f){
-            Produce(current.opt);
-            current = null;
+            // Try to produce; if it can’t (e.g., pop cap), we’ll retry shortly.
+            if (TryProduce(current.opt)){
+                current = null;
+            } else {
+                // Stall a little and try again while waiting for room.
+                current.remaining = 0.1f;
+            }
         }
     }
 
     public bool Enqueue(int optionIndex){
+        // Pop cap check on enqueue (QoL). We’ll also guard at spawn time.
+        if (PopulationBank.I && !PopulationBank.I.HasRoom(1)) {
+            // TODO: flash "Population cap reached"
+            return false;
+        }
         if (optionIndex < 0 || optionIndex >= options.Count) return false;
         if (QueueCount >= maxQueue) return false;
 
@@ -67,7 +79,7 @@ public class ProductionBuilding : MonoBehaviour {
         return true;
     }
 
-    public bool CancelFront(){ // cancels current and refunds remaining full cost
+    public bool CancelFront(){ // cancels current and refunds full cost
         if (current == null) return false;
         if (ResourceBank.I != null) ResourceBank.I.Refund(current.opt.cost);
         current = null;
@@ -76,9 +88,9 @@ public class ProductionBuilding : MonoBehaviour {
 
     public bool CancelLast(){
         if (queue.Count == 0) return false;
-        var temp = new System.Collections.Generic.List<Queued>(queue);
-        var last = temp[temp.Count-1];
-        temp.RemoveAt(temp.Count-1);
+        var temp = new List<Queued>(queue);
+        var last = temp[temp.Count - 1];
+        temp.RemoveAt(temp.Count - 1);
         queue.Clear();
         foreach (var q in temp) queue.Enqueue(q);
         if (ResourceBank.I != null) ResourceBank.I.Refund(last.opt.cost);
@@ -92,13 +104,24 @@ public class ProductionBuilding : MonoBehaviour {
         return list;
     }
 
-    void Produce(ProductionOption opt){
+    // Try to spawn the unit; return true on success, false if postponed (e.g., no pop room)
+    bool TryProduce(ProductionOption opt){
+        // Guard pop cap at spawn time (queue may have been created earlier)
+        if (PopulationBank.I && !PopulationBank.I.HasRoom(1)){
+            return false; // postpone; Update() will retry
+        }
+
         var pos = spawnAnchor ? spawnAnchor.position : transform.position + transform.forward * 1.5f;
         var go = Instantiate(opt.prefab, pos, Quaternion.identity);
 
+        // Count population
+        PopulationBank.I?.OnUnitSpawned(1);
+
+        // Send to rally if set
         var mover = go.GetComponent<UnitMover>();
         if (mover && rally && rally.HasPoint){
             mover.IssueMove(rally.Point);
         }
+        return true;
     }
 }

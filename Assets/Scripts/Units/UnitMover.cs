@@ -1,3 +1,4 @@
+using System;                      // <-- for Action
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
@@ -8,7 +9,9 @@ public class UnitMover : MonoBehaviour {
     readonly Queue<Vector3> queue = new Queue<Vector3>();
     const float arriveEpsilon = 0.2f;
 
-    bool holdPosition; // <- new
+    bool holdPosition;
+
+    Action onArrive;               // <-- one-shot arrival callback
 
     void Awake(){ agent = GetComponent<NavMeshAgent>(); }
 
@@ -20,30 +23,29 @@ public class UnitMover : MonoBehaviour {
             agent.ResetPath();
             agent.isStopped = true;
             queue.Clear();
-            // Debug.Log($"[Hold] {name} hold ON");
+            onArrive = null;
         } else {
             agent.isStopped = false;
-            // Debug.Log($"[Hold] {name} hold OFF");
         }
     }
 
     public void StopNow(){
         queue.Clear();
+        onArrive = null;
         agent.ResetPath();
-        agent.isStopped = false; // still allow immediate moves after stop
-        // Debug.Log($"[Stop] {name}");
+        agent.isStopped = false; // allow immediate new commands
     }
 
     public void IssueMove(Vector3 dest){
-        if (holdPosition) return;    // ignore commands while holding
+        if (holdPosition || !agent.enabled) return;
         queue.Clear();
+        onArrive = null;
         agent.isStopped = false;
         SetDest(dest);
     }
 
     public void QueueMove(Vector3 dest){
-        if (holdPosition) return;
-        if (!agent.enabled) return;
+        if (holdPosition || !agent.enabled) return;
 
         if (!agent.hasPath && queue.Count == 0){
             agent.isStopped = false;
@@ -53,10 +55,23 @@ public class UnitMover : MonoBehaviour {
         }
     }
 
+    public void SetArrivalCallback(Action cb){
+        onArrive = cb;             // one-shot; cleared on trigger
+    }
+
     void Update(){
         if (holdPosition || !agent.enabled) return;
 
-        if (!agent.pathPending && agent.remainingDistance <= Mathf.Max(agent.stoppingDistance, arriveEpsilon)){
+        // Only when we're basically at the destination and not computing a path
+        bool arrived = !agent.pathPending &&
+                       agent.remainingDistance <= Mathf.Max(agent.stoppingDistance, arriveEpsilon);
+
+        if (arrived){
+            // Fire any one-shot arrival callback first
+            var cb = onArrive; onArrive = null;
+            cb?.Invoke();
+
+            // Then continue queued waypoints if any
             if (queue.Count > 0){
                 SetDest(queue.Dequeue());
             }

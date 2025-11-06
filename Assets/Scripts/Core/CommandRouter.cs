@@ -11,6 +11,9 @@ public class CommandRouter : MonoBehaviour {
     public SelectionManager selection;
     public MoveMarker markerPrefab;
 
+    public LayerMask resourceMask; // set to "Resource"
+
+
     bool attackMode; // press A to enable for ONE left-click command
 
     void Reset(){ cam = Camera.main; }
@@ -160,6 +163,22 @@ public class CommandRouter : MonoBehaviour {
         if (RMBDown()){
             var mp = MousePos();
             var ray = cam.ScreenPointToRay(new Vector3(mp.x, mp.y, 0f));
+
+
+            // RMB on resource → gather
+            if (Physics.Raycast(ray, out var hitRes, 500f, resourceMask)){
+                foreach (var sel in selection.Current){
+                    var harv = sel.GetComponent<VillagerHarvester>();
+                    if (!harv) continue;
+                    var node = hitRes.collider.GetComponentInParent<ResourceNode>();
+                    if (node) {
+                        var atk = sel.GetComponent<AttackUnit>();
+                        if (atk) atk.ClearTarget();
+                        harv.IssueGather(node);
+                    }
+                }
+                return; // skip ground move if we clicked a resource
+            }
 
             if (Physics.Raycast(ray, out var hit, 500f, groundMask)){
                 attackMode = false; // cancel pending A-mode
