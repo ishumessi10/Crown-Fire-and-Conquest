@@ -11,8 +11,8 @@ public class CommandRouter : MonoBehaviour {
     public SelectionManager selection;
     public MoveMarker markerPrefab;
 
-    public LayerMask resourceMask; // set to "Resource"
-
+    public LayerMask resourceMask;       // set to "Resource"
+    public LayerMask buildingMask;       // NEW: set this to your "Building" layer in Inspector
 
     bool attackMode; // press A to enable for ONE left-click command
 
@@ -68,7 +68,7 @@ public class CommandRouter : MonoBehaviour {
         return (Vector2)Input.mousePosition;
         #endif
     }
-    
+
     bool PointerOverUI() {
         return EventSystem.current && EventSystem.current.IsPointerOverGameObject();
     }
@@ -78,10 +78,10 @@ public class CommandRouter : MonoBehaviour {
         if (!cam) cam = Camera.main;
 
         // If pointer is over any UI, skip world commands this frame
-            if (PointerOverUI()){
-                Debug.Log("[Input] Over UI → world input blocked");
-                return;
-            }
+        if (PointerOverUI()){
+            // Debug.Log("[Input] Over UI → world input blocked");
+            return;
+        }
 
         // Press A to arm attack mode for the next LMB
         if (ADown()) attackMode = true;
@@ -94,6 +94,10 @@ public class CommandRouter : MonoBehaviour {
             foreach (var sel in selection.Current){
                 var mover = sel.GetComponent<UnitMover>();
                 if (mover) mover.StopNow();
+
+                // If they were building, stop that too
+                var builder = sel.GetComponent<VillagerBuilder>();
+                if (builder) builder.StopBuilding();
             }
         }
         if (HDown()){
@@ -119,6 +123,10 @@ public class CommandRouter : MonoBehaviour {
             // Left-click on ENEMY while armed -> direct attack target
             if (Physics.Raycast(ray, out var hitEnemy, 500f, enemyMask)){
                 foreach (var sel in selection.Current){
+                    // If they were building, stop first
+                    var builder = sel.GetComponent<VillagerBuilder>();
+                    if (builder) builder.StopBuilding();
+
                     var atk = sel.GetComponent<AttackUnit>();
                     if (atk){
                         var t = hitEnemy.collider.GetComponentInParent<Targetable>();
@@ -133,6 +141,10 @@ public class CommandRouter : MonoBehaviour {
             if (Physics.Raycast(ray, out var hit, 500f, groundMask)){
                 int i = 0; float spacing = 0.8f;
                 foreach (var sel in selection.Current){
+                    // If they were building, stop first
+                    var builder = sel.GetComponent<VillagerBuilder>();
+                    if (builder) builder.StopBuilding();
+
                     var atk = sel.GetComponent<AttackUnit>();
                     var mover = sel.GetComponent<UnitMover>();
                     Vector2 offset = CircleOffset(i++, spacing);
@@ -150,60 +162,101 @@ public class CommandRouter : MonoBehaviour {
                     m.ShowAt(hit.point); 
                     m.GetComponent<ScalePing>()?.Play();
                 }
-                
-
             }
 
             attackMode = false; // consume A-mode after the click
             return;
         }
 
-        
-        // --- Normal RMB move/queue (override combat) ---
-        if (RMBDown()){
-            var mp = MousePos();
-            var ray = cam.ScreenPointToRay(new Vector3(mp.x, mp.y, 0f));
+        // --- Normal RMB move/queue / gather / build ---
+if (RMBDown()){
+    var mp = MousePos();
+    var ray = cam.ScreenPointToRay(new Vector3(mp.x, mp.y, 0f));
 
+    attackMode = false; // cancel pending A-mode on RMB
 
-            // RMB on resource → gather
-            if (Physics.Raycast(ray, out var hitRes, 500f, resourceMask)){
-                foreach (var sel in selection.Current){
-                    var harv = sel.GetComponent<VillagerHarvester>();
-                    if (!harv) continue;
-                    var node = hitRes.collider.GetComponentInParent<ResourceNode>();
-                    if (node) {
-                        var atk = sel.GetComponent<AttackUnit>();
-                        if (atk) atk.ClearTarget();
-                        harv.IssueGather(node);
-                    }
-                }
-                return; // skip ground move if we clicked a resource
-            }
+    Debug.Log("[CMD] RMBDown");
 
-            if (Physics.Raycast(ray, out var hit, 500f, groundMask)){
-                attackMode = false; // cancel pending A-mode
+    // Single raycast with NO mask first, so we see *what we hit at all*
+    if (!Physics.Raycast(ray, out var hitAll, 500f)){
+        Debug.Log("[CMD] RMB ray hit NOTHING");
+        return;
+    }
 
-                int i = 0; float spacing = 0.8f;
-                foreach (var sel in selection.Current){
-                    var atk = sel.GetComponent<AttackUnit>();
-                    if (atk) atk.ClearTarget();              // <- IMPORTANT
+    Debug.Log($"[CMD] RMB hit collider: {hitAll.collider.name} (layer {hitAll.collider.gameObject.layer})");
 
-                    var mover = sel.GetComponent<UnitMover>();
-                    if (!mover) continue;
+    // 1) Did we hit a Constructable building?
+    var construct = hitAll.collider.GetComponentInParent<Constructable>();
+    if (construct != null){
+        Debug.Log($"[CMD] RMB on BUILDING: {construct.name}");
 
-                    Vector2 offset = CircleOffset(i++, spacing);
-                    var target = hit.point + new Vector3(offset.x, 0f, offset.y);
-                    if (ShiftHeld()) mover.QueueMove(target);
-                    else             mover.IssueMove(target);
-                }
+        foreach (var sel in selection.Current){
+            var atk = sel.GetComponent<AttackUnit>();
+            if (atk) atk.ClearTarget();
 
-                if (markerPrefab){
-                    var m = Instantiate(markerPrefab);
-                    m.ShowAt(hit.point);
-                    m.GetComponent<ScalePing>()?.Play();
-                    }
+            var builder = sel.GetComponent<VillagerBuilder>();
+            if (!builder) continue; // skip non-villagers
+
+            builder.OrderBuild(construct);
+        }
+        return; // don't also move
+    }
+
+    // 2) Did we hit a resource? (use your resourceMask)
+    bool hitIsResource = ((1 << hitAll.collider.gameObject.layer) & resourceMask.value) != 0;
+    if (hitIsResource){
+        Debug.Log($"[CMD] RMB on RESOURCE: {hitAll.collider.name}");
+        foreach (var sel in selection.Current){
+            var builder = sel.GetComponent<VillagerBuilder>();
+            if (builder) builder.StopBuilding();
+
+            var harv = sel.GetComponent<VillagerHarvester>();
+            if (!harv) continue;
+
+            var node = hitAll.collider.GetComponentInParent<ResourceNode>();
+            if (node) {
+                var atk = sel.GetComponent<AttackUnit>();
+                if (atk) atk.ClearTarget();
+                harv.IssueGather(node);
             }
         }
+        return;
+    }
+
+    // 3) Otherwise treat it as ground move (using groundMask + formation)
+    bool hitIsGround = ((1 << hitAll.collider.gameObject.layer) & groundMask.value) != 0;
+    if (hitIsGround){
+        Debug.Log("[CMD] RMB on GROUND");
+
+        int i = 0; float spacing = 0.8f;
+        foreach (var sel in selection.Current){
+            var atk = sel.GetComponent<AttackUnit>();
+            if (atk) atk.ClearTarget();
+
+            var builder = sel.GetComponent<VillagerBuilder>();
+            if (builder) builder.StopBuilding();
+
+            var mover = sel.GetComponent<UnitMover>();
+            if (!mover) continue;
+
+            Vector2 offset = CircleOffset(i++, spacing);
+            var target = hitAll.point + new Vector3(offset.x, 0f, offset.y);
+            if (ShiftHeld()) mover.QueueMove(target);
+            else             mover.IssueMove(target);
+        }
+
+        if (markerPrefab){
+            var m = Instantiate(markerPrefab);
+            m.ShowAt(hitAll.point);
+            m.GetComponent<ScalePing>()?.Play();
+        }
+        return;
+    }
+
+    // 4) Hit something else (like a prop on another layer) → just log it
+    Debug.Log("[CMD] RMB hit something that is neither building, resource, nor ground.");
+}
+
     }
 
     Vector2 CircleOffset(int idx, float spacing){

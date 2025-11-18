@@ -17,6 +17,7 @@ GameObject:
   - component: {fileID: 5871965811697332708}
   - component: {fileID: 1389050567181107962}
   - component: {fileID: 7327002297741428271}
+  - component: {fileID: -802624180167195261}
   m_Layer: 7
   m_Name: Villager
   m_TagString: Untagged
@@ -197,3 +198,15 @@ MonoBehaviour:
   enemyMask:
     serializedVersion: 2
     m_Bits: 512
+--- !u!114 &-802624180167195261
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7133123815886123835}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6ce363f3cd25d4bdfb03f89f5bd4d731, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VillagerBuilder
